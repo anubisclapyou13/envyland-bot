@@ -22,12 +22,11 @@ async function getServerStatus() {
   for (const url of apis) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       return data;
     } catch (err) {
       lastError = err;
-      console.error(`Falló API ${url}:`, err.message);
     }
   }
 
@@ -68,13 +67,11 @@ client.on('messageCreate', async (message) => {
 
     try {
       const data = await getServerStatus();
-
-      const isOnline = data.online ?? data.ip_address !== undefined;
+      const isOnline = data.online ?? false;
 
       if (isOnline) {
         const online = data.players?.online ?? 0;
         const max = data.players?.max ?? 0;
-        const motd = data.motd?.clean ?? data.motd?.raw ?? 'Servidor de Minecraft';
 
         const statusEmbed = new EmbedBuilder()
           .setTitle('📡 Estado del Servidor')
@@ -105,7 +102,6 @@ client.on('messageCreate', async (message) => {
         await loadingMsg.edit({ content: '', embeds: [offlineEmbed] });
       }
     } catch (err) {
-      console.error('Error final:', err.message);
       await loadingMsg.edit({ content: `❌ Error al consultar: \`${err.message}\`` });
     }
   }
