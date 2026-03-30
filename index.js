@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const { statusBedrock } = require('minecraft-server-util');
+const https = require('https');
 
 const client = new Client({
   intents: [
@@ -11,6 +11,23 @@ const client = new Client({
 
 const MC_HOST = 'ENVYLAND1.aternos.me';
 const MC_PORT = 60636;
+
+function getServerStatus() {
+  return new Promise((resolve, reject) => {
+    const url = `https://api.mcsrvstat.us/bedrock/3/${MC_HOST}:${MC_PORT}`;
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          reject(new Error('Error al leer la respuesta'));
+        }
+      });
+    }).on('error', reject);
+  });
+}
 
 client.once('clientReady', () => {
   console.log(`✅ Bot conectado como ${client.user.tag}`);
@@ -45,40 +62,44 @@ client.on('messageCreate', async (message) => {
     const loadingMsg = await message.reply('🔍 Consultando el estado del servidor...');
 
     try {
-      const result = await statusBedrock(MC_HOST, MC_PORT, { timeout: 5000 });
+      const data = await getServerStatus();
 
-      const online = result.players.online;
-      const max = result.players.max;
-      const motd = result.motd?.clean ?? 'Servidor de Minecraft';
+      if (data.online) {
+        const online = data.players?.online ?? 0;
+        const max = data.players?.max ?? 0;
+        const motd = data.motd?.clean?.[0] ?? 'Servidor de Minecraft';
 
-      const statusEmbed = new EmbedBuilder()
-        .setTitle('📡 Estado del Servidor')
-        .setColor(0x00b300)
-        .addFields(
-          { name: '🟢 Estado', value: '`En línea`', inline: true },
-          { name: '👥 Jugadores', value: `\`${online} / ${max}\``, inline: true },
-          { name: '🖥️ IP', value: `\`${MC_HOST}\``, inline: false },
-          { name: '🔌 Puerto', value: `\`${MC_PORT}\``, inline: true },
-          { name: '📋 MOTD', value: `\`${motd}\``, inline: false },
-        )
-        .setFooter({ text: '¡Únete y juega con nosotros!' })
-        .setTimestamp();
+        const statusEmbed = new EmbedBuilder()
+          .setTitle('📡 Estado del Servidor')
+          .setColor(0x00b300)
+          .addFields(
+            { name: '🟢 Estado', value: '`En línea`', inline: true },
+            { name: '👥 Jugadores', value: `\`${online} / ${max}\``, inline: true },
+            { name: '🖥️ IP', value: `\`${MC_HOST}\``, inline: false },
+            { name: '🔌 Puerto', value: `\`${MC_PORT}\``, inline: true },
+            { name: '📋 MOTD', value: `\`${motd}\``, inline: false },
+          )
+          .setFooter({ text: '¡Únete y juega con nosotros!' })
+          .setTimestamp();
 
-      await loadingMsg.edit({ content: '', embeds: [statusEmbed] });
+        await loadingMsg.edit({ content: '', embeds: [statusEmbed] });
+      } else {
+        const offlineEmbed = new EmbedBuilder()
+          .setTitle('📡 Estado del Servidor')
+          .setColor(0xff0000)
+          .addFields(
+            { name: '🔴 Estado', value: '`Apagado`', inline: true },
+            { name: '👥 Jugadores', value: '`0 / 0`', inline: true },
+            { name: '🖥️ IP', value: `\`${MC_HOST}\``, inline: false },
+            { name: '🔌 Puerto', value: `\`${MC_PORT}\``, inline: true },
+          )
+          .setFooter({ text: 'El servidor está apagado.' })
+          .setTimestamp();
+
+        await loadingMsg.edit({ content: '', embeds: [offlineEmbed] });
+      }
     } catch {
-      const offlineEmbed = new EmbedBuilder()
-        .setTitle('📡 Estado del Servidor')
-        .setColor(0xff0000)
-        .addFields(
-          { name: '🔴 Estado', value: '`Apagado / Sin respuesta`', inline: true },
-          { name: '👥 Jugadores', value: '`0 / 0`', inline: true },
-          { name: '🖥️ IP', value: `\`${MC_HOST}\``, inline: false },
-          { name: '🔌 Puerto', value: `\`${MC_PORT}\``, inline: true },
-        )
-        .setFooter({ text: 'El servidor parece estar apagado.' })
-        .setTimestamp();
-
-      await loadingMsg.edit({ content: '', embeds: [offlineEmbed] });
+      await loadingMsg.edit({ content: '❌ No se pudo consultar el estado del servidor. Intenta de nuevo.' });
     }
   }
 
