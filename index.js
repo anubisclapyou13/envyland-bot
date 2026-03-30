@@ -12,10 +12,26 @@ const MC_HOST = 'ENVYLAND1.aternos.me';
 const MC_PORT = 60636;
 
 async function getServerStatus() {
-  const url = `https://api.mcstatus.io/v2/status/bedrock/${MC_HOST}:${MC_PORT}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-  return res.json();
+  const apis = [
+    `https://api.mcstatus.io/v2/status/bedrock/${MC_HOST}:${MC_PORT}`,
+    `https://api.mcsrvstat.us/bedrock/3/${MC_HOST}:${MC_PORT}`,
+  ];
+
+  let lastError = null;
+
+  for (const url of apis) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`);
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      lastError = err;
+      console.error(`Falló API ${url}:`, err.message);
+    }
+  }
+
+  throw lastError;
 }
 
 client.once('clientReady', () => {
@@ -53,10 +69,11 @@ client.on('messageCreate', async (message) => {
     try {
       const data = await getServerStatus();
 
-      if (data.online) {
+      const isOnline = data.online ?? data.ip_address !== undefined;
+
+      if (isOnline) {
         const online = data.players?.online ?? 0;
         const max = data.players?.max ?? 0;
-        const motd = data.motd?.clean ?? 'Servidor de Minecraft';
 
         const statusEmbed = new EmbedBuilder()
           .setTitle('📡 Estado del Servidor')
@@ -66,7 +83,6 @@ client.on('messageCreate', async (message) => {
             { name: '👥 Jugadores', value: `\`${online} / ${max}\``, inline: true },
             { name: '🖥️ IP', value: `\`${MC_HOST}\``, inline: false },
             { name: '🔌 Puerto', value: `\`${MC_PORT}\``, inline: true },
-            { name: '📋 MOTD', value: `\`${motd}\``, inline: false },
           )
           .setFooter({ text: '¡Únete y juega con nosotros!' })
           .setTimestamp();
@@ -88,8 +104,8 @@ client.on('messageCreate', async (message) => {
         await loadingMsg.edit({ content: '', embeds: [offlineEmbed] });
       }
     } catch (err) {
-      console.error('Error consultando estado:', err.message);
-      await loadingMsg.edit({ content: `❌ Error: ${err.message}` });
+      console.error('Error final:', err.message);
+      await loadingMsg.edit({ content: `❌ Error al consultar: \`${err.message}\`` });
     }
   }
 
