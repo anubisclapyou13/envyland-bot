@@ -1,5 +1,4 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const https = require('https');
 
 const client = new Client({
   intents: [
@@ -12,21 +11,11 @@ const client = new Client({
 const MC_HOST = 'ENVYLAND1.aternos.me';
 const MC_PORT = 60636;
 
-function getServerStatus() {
-  return new Promise((resolve, reject) => {
-    const url = `https://api.mcsrvstat.us/bedrock/3/${MC_HOST}:${MC_PORT}`;
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          reject(new Error('Error al leer la respuesta'));
-        }
-      });
-    }).on('error', reject);
-  });
+async function getServerStatus() {
+  const url = `https://api.mcstatus.io/v2/status/bedrock/${MC_HOST}:${MC_PORT}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+  return res.json();
 }
 
 client.once('clientReady', () => {
@@ -67,7 +56,7 @@ client.on('messageCreate', async (message) => {
       if (data.online) {
         const online = data.players?.online ?? 0;
         const max = data.players?.max ?? 0;
-        const motd = data.motd?.clean?.[0] ?? 'Servidor de Minecraft';
+        const motd = data.motd?.clean ?? 'Servidor de Minecraft';
 
         const statusEmbed = new EmbedBuilder()
           .setTitle('📡 Estado del Servidor')
@@ -98,8 +87,9 @@ client.on('messageCreate', async (message) => {
 
         await loadingMsg.edit({ content: '', embeds: [offlineEmbed] });
       }
-    } catch {
-      await loadingMsg.edit({ content: '❌ No se pudo consultar el estado del servidor. Intenta de nuevo.' });
+    } catch (err) {
+      console.error('Error consultando estado:', err.message);
+      await loadingMsg.edit({ content: `❌ Error: ${err.message}` });
     }
   }
 
