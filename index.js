@@ -9,7 +9,7 @@ const client = new Client({
 });
 
 const MC_HOST = 'ENVYLAND1.aternos.me';
-const MC_PORT = 60636;
+const MC_PORT = 60676;
 
 async function getServerStatus() {
   const apis = [
@@ -74,6 +74,7 @@ client.on('messageCreate', async (message) => {
       if (isOnline) {
         const online = data.players?.online ?? 0;
         const max = data.players?.max ?? 0;
+        const motd = data.motd?.clean ?? data.motd?.raw ?? 'Servidor de Minecraft';
 
         const statusEmbed = new EmbedBuilder()
           .setTitle('📡 Estado del Servidor')
